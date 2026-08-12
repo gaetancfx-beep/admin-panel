@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Console Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg: #0a0d12;
+    --panel: #12161d;
+    --panel-2: #171c25;
+    --line: #232a35;
+    --text: #dfe4ea;
+    --text-dim: #7b8494;
+    --amber: #f2b705;
+    --amber-dim: #6b5a1f;
+    --teal: #3fd6bf;
+    --red: #ef5b5b;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', sans-serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+  }
+  ::selection{ background:var(--amber); color:#0a0d12; }
+
+  /* ---------- LOGIN ---------- */
+  #login-screen{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:
+      radial-gradient(circle at 20% 20%, rgba(242,183,5,0.06), transparent 40%),
+      radial-gradient(circle at 80% 80%, rgba(63,214,191,0.05), transparent 40%),
+      var(--bg);
+  }
+  .login-box{
+    width:340px;
+    padding:36px 32px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:6px;
+  }
+  .login-eyebrow{
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.15em;
+    color:var(--amber);
+    text-transform:uppercase;
+    margin-bottom:6px;
+  }
+  .login-box h1{ font-size:20px; font-weight:700; margin-bottom:24px; }
+  .field{ margin-bottom:14px; }
+  .field label{ display:block; font-size:12px; color:var(--text-dim); margin-bottom:6px; }
+  .field input{
+    width:100%;
+    background:var(--bg);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:10px 12px;
+    color:var(--text);
+    font-family:var(--sans);
+    font-size:14px;
+  }
+  .field input:focus{ outline:none; border-color:var(--amber); }
+  .btn{
+    width:100%;
+    padding:11px;
+    background:var(--amber);
+    color:#0a0d12;
+    border:none;
+    border-radius:4px;
+    font-weight:700;
+    font-size:14px;
+    cursor:pointer;
+    margin-top:6px;
+  }
+  .btn:hover{ filter:brightness(1.08); }
+  .btn.secondary{ background:transparent; border:1px solid var(--line); color:var(--text); }
+  .btn.danger{ background:var(--red); color:#1a0d0d; }
+  #login-error{ color:var(--red); font-size:12px; margin-top:10px; min-height:14px; }
+
+  /* ---------- APP SHELL ---------- */
+  #app{ display:none; min-height:100vh; }
+  #app.active{ display:flex; }
+
+  #sidebar{
+    width:210px;
+    background:var(--panel);
+    border-right:1px solid var(--line);
+    padding:20px 14px;
+    display:flex;
+    flex-direction:column;
+  }
+  #sidebar .brand{
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:.1em;
+    color:var(--text-dim);
+    text-transform:uppercase;
+    margin-bottom:22px;
+    padding-left:6px;
+  }
+  #sidebar .brand span{ color:var(--amber); }
+  .nav-item{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:10px 12px;
+    border-radius:4px;
+    color:var(--text-dim);
+    cursor:pointer;
+    font-size:14px;
+    font-weight:500;
+    margin-bottom:2px;
+  }
+  .nav-item .dot{ width:6px; height:6px; border-radius:50%; background:var(--text-dim); }
+  .nav-item:hover{ background:var(--panel-2); color:var(--text); }
+  .nav-item.active{ background:var(--panel-2); color:var(--text); }
+  .nav-item.active .dot{ background:var(--amber); }
+  #sidebar .spacer{ flex:1; }
+
+  #main{ flex:1; padding:28px 36px; overflow-y:auto; }
+  #main header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
+  #main h2{ font-size:20px; font-weight:700; }
+  #main .sub{ font-family:var(--mono); font-size:12px; color:var(--text-dim); margin-top:4px; }
+
+  .view{ display:none; }
+  .view.active{ display:block; }
+
+  /* ---------- TABLE ---------- */
+  .table-wrap{ background:var(--panel); border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+  table{ width:100%; border-collapse:collapse; }
+  th{
+    text-align:left;
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    padding:12px 16px;
+    border-bottom:1px solid var(--line);
+    background:var(--panel-2);
+  }
+  td{ padding:12px 16px; border-bottom:1px solid var(--line); font-size:13.5px; vertical-align:top; }
+  tr:last-child td{ border-bottom:none; }
+  tr:hover td{ background:rgba(255,255,255,0.015); }
+  .mono{ font-family:var(--mono); font-size:12.5px; color:var(--text-dim); }
+
+  .badge{
+    display:inline-block;
+    padding:3px 9px;
+    border-radius:20px;
+    font-family:var(--mono);
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+  }
+  .badge.pending{ background:rgba(242,183,5,0.12); color:var(--amber); }
+  .badge.resolved{ background:rgba(63,214,191,0.12); color:var(--teal); }
+  .badge.rejected{ background:rgba(239,91,91,0.12); color:var(--red); }
+
+  .row-actions{ display:flex; gap:6px; }
+  .icon-btn{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text-dim);
+    border-radius:4px;
+    padding:5px 10px;
+    font-size:12px;
+    cursor:pointer;
+    font-family:var(--sans);
+  }
+  .icon-btn:hover{ color:var(--text); border-color:var(--text-dim); }
+  .icon-btn.resolve:hover{ color:var(--teal); border-color:var(--teal); }
+  .icon-btn.reject:hover{ color:var(--red); border-color:var(--red); }
+
+  /* ---------- FORM PANEL ---------- */
+  .panel-card{ background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:20px; margin-bottom:20px; }
+  .panel-card h3{ font-size:14px; margin-bottom:14px; color:var(--text); }
+  .form-row{ display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+  .form-row .field{ flex:1; min-width:140px; margin-bottom:0; }
+  .form-row select{
+    width:100%;
+    background:var(--bg);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:10px 12px;
+    color:var(--text);
+    font-size:14px;
+  }
+  .form-row .btn{ width:auto; padding:10px 18px; }
+
+  .perm-tag{
+    display:inline-block;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--text-dim);
+    font-family:var(--mono);
+    font-size:11px;
+    padding:2px 7px;
+    border-radius:3px;
+    margin:2px 3px 2px 0;
+  }
+
+  .empty-state{ padding:40px 20px; text-align:center; color:var(--text-dim); font-size:13px; }
+</style>
+</head>
+<body>
+
+<!-- ===================== LOGIN ===================== -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-eyebrow">Accès restreint</div>
+    <h1>Console Admin</h1>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="login-email" placeholder="toi@exemple.com">
+    </div>
+    <div class="field">
+      <label>Mot de passe</label>
+      <input type="password" id="login-password" placeholder="••••••••">
+    </div>
+    <button class="btn" id="login-btn">Se connecter</button>
+    <div id="login-error"></div>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="app">
+  <div id="sidebar">
+    <div class="brand">console<span>/</span>admin</div>
+    <div class="nav-item active" data-view="reports"><span class="dot"></span>Reports</div>
+    <div class="nav-item" data-view="admins"><span class="dot"></span>Admins</div>
+    <div class="nav-item" data-view="ranks"><span class="dot"></span>Ranks</div>
+    <div class="spacer"></div>
+    <button class="btn secondary" id="logout-btn">Déconnexion</button>
+  </div>
+
+  <div id="main">
+    <!-- REPORTS -->
+    <div class="view active" id="view-reports">
+      <header>
+        <div>
+          <h2>Reports</h2>
+          <div class="sub" id="reports-count">chargement…</div>
+        </div>
+        <select id="reports-filter" style="background:var(--panel);border:1px solid var(--line);color:var(--text);padding:8px 12px;border-radius:4px;font-family:var(--mono);font-size:12px;">
+          <option value="all">Tous</option>
+          <option value="pending">En attente</option>
+          <option value="resolved">Résolus</option>
+          <option value="rejected">Rejetés</option>
+        </select>
+      </header>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Statut</th>
+              <th>Rapporté par</th>
+              <th>Joueur visé</th>
+              <th>Raison</th>
+              <th>Preuve</th>
+              <th>Serveur</th>
+              <th>Date</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="reports-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ADMINS -->
+    <div class="view" id="view-admins">
+      <header>
+        <div>
+          <h2>Admins</h2>
+          <div class="sub" id="admins-count">chargement…</div>
+        </div>
+      </header>
+
+      <div class="panel-card">
+        <h3>Ajouter un admin</h3>
+        <div class="form-row">
+          <div class="field">
+            <label>Roblox User ID</label>
+            <input type="number" id="add-admin-id" placeholder="123456789">
+          </div>
+          <div class="field">
+            <label>Pseudo Roblox</label>
+            <input type="text" id="add-admin-name" placeholder="Pseudo">
+          </div>
+          <div class="field">
+            <label>Rang</label>
+            <select id="add-admin-rank"></select>
+          </div>
+          <button class="btn" id="add-admin-btn" style="width:auto;padding:10px 18px;">Ajouter</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Pseudo</th><th>User ID</th><th>Rang</th><th>Ajouté le</th><th></th></tr>
+          </thead>
+          <tbody id="admins-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- RANKS -->
+    <div class="view" id="view-ranks">
+      <header>
+        <div>
+          <h2>Ranks</h2>
+          <div class="sub" id="ranks-count">chargement…</div>
+        </div>
+      </header>
+
+      <div class="panel-card">
+        <h3>Créer un rang</h3>
+        <div class="form-row">
+          <div class="field">
+            <label>Nom</label>
+            <input type="text" id="add-rank-name" placeholder="Modérateur">
+          </div>
+          <div class="field">
+            <label>Niveau (0-100)</label>
+            <input type="number" id="add-rank-level" placeholder="30">
+          </div>
+          <div class="field" style="flex:2;">
+            <label>Permissions (séparées par virgule)</label>
+            <input type="text" id="add-rank-perms" placeholder="kick, report.view, report.resolve">
+          </div>
+          <button class="btn" id="add-rank-btn" style="width:auto;padding:10px 18px;">Créer</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Nom</th><th>Niveau</th><th>Permissions</th><th></th></tr>
+          </thead>
+          <tbody id="ranks-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONFIG — à remplacer par tes vraies valeurs Supabase
+// (Project Settings > API). L'anon key est publique par design,
+// la sécurité vient des policies RLS (auth.role() = 'authenticated').
+// ============================================================
+const SUPABASE_URL = "https://TON-PROJET.supabase.co";
+const SUPABASE_ANON_KEY = "TA_ANON_KEY";
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let ranksCache = [];
+
+// ---------- AUTH ----------
+document.getElementById('login-btn').addEventListener('click', async () => {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) {
+    errEl.textContent = "Connexion refusée : " + error.message;
+    return;
+  }
+  enterApp();
+});
+
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await sb.auth.signOut();
+  location.reload();
+});
+
+async function checkSession() {
+  const { data } = await sb.auth.getSession();
+  if (data.session) enterApp();
+}
+
+function enterApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').classList.add('active');
+  loadRanks().then(() => {
+    loadReports();
+    loadAdmins();
+    loadRanksTable();
+  });
+}
+
+// ---------- NAV ----------
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    item.classList.add('active');
+    document.getElementById('view-' + item.dataset.view).classList.add('active');
+  });
+});
+
+// ---------- REPORTS ----------
+async function loadReports() {
+  const filter = document.getElementById('reports-filter').value;
+  let query = sb.from('reports').select('*').order('created_at', { ascending: false });
+  if (filter !== 'all') query = query.eq('status', filter);
+
+  const { data, error } = await query;
+  const body = document.getElementById('reports-body');
+  body.innerHTML = '';
+
+  if (error) {
+    body.innerHTML = `<tr><td colspan="8" class="empty-state">Erreur : ${error.message}</td></tr>`;
+    return;
+  }
+
+  document.getElementById('reports-count').textContent = `${data.length} report(s)`;
+
+  if (data.length === 0) {
+    body.innerHTML = `<tr><td colspan="8" class="empty-state">Aucun report pour ce filtre.</td></tr>`;
+    return;
+  }
+
+  data.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="badge ${r.status}">${r.status}</span></td>
+      <td>${r.reporter_name}<div class="mono">#${r.reporter_id}</div></td>
+      <td>${r.reported_name}<div class="mono">#${r.reported_id}</div></td>
+      <td>${escapeHtml(r.reason)}</td>
+      <td>${r.proof_asset_id ? `<a href="https://www.roblox.com/library/${encodeURIComponent(r.proof_asset_id)}" target="_blank" rel="noopener" style="color:var(--teal);">Voir</a>` : '<span class="mono">—</span>'}</td>
+      <td class="mono">${r.server_id ? r.server_id.slice(0,8) : '—'}</td>
+      <td class="mono">${formatDate(r.created_at)}</td>
+      <td>
+        <div class="row-actions">
+          ${r.status === 'pending' ? `
+            <button class="icon-btn resolve" data-id="${r.id}" data-action="resolved">Résoudre</button>
+            <button class="icon-btn reject" data-id="${r.id}" data-action="rejected">Rejeter</button>
+          ` : ''}
+        </div>
+      </td>
+    `;
+    body.appendChild(tr);
+  });
+
+  body.querySelectorAll('button[data-action]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const { data: { user } } = await sb.auth.getUser();
+      await sb.from('reports').update({
+        status: btn.dataset.action,
+        handled_by: user?.email || 'panel',
+        handled_at: new Date().toISOString(),
+      }).eq('id', btn.dataset.id);
+      loadReports();
+    });
+  });
+}
+document.getElementById('reports-filter').addEventListener('change', loadReports);
+
+// ---------- RANKS (cache pour le select admins) ----------
+async function loadRanks() {
+  const { data } = await sb.from('ranks').select('*').order('level', { ascending: false });
+  ranksCache = data || [];
+  const select = document.getElementById('add-admin-rank');
+  select.innerHTML = ranksCache.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+}
+
+async function loadRanksTable() {
+  const body = document.getElementById('ranks-body');
+  body.innerHTML = '';
+  document.getElementById('ranks-count').textContent = `${ranksCache.length} rang(s)`;
+
+  if (ranksCache.length === 0) {
+    body.innerHTML = `<tr><td colspan="4" class="empty-state">Aucun rang défini.</td></tr>`;
+    return;
+  }
+
+  ranksCache.forEach(r => {
+    const perms = Array.isArray(r.permissions) ? r.permissions : [];
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.name}</td>
+      <td class="mono">${r.level}</td>
+      <td>${perms.map(p => `<span class="perm-tag">${p}</span>`).join('')}</td>
+      <td><button class="icon-btn reject" data-id="${r.id}">Supprimer</button></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  body.querySelectorAll('button[data-id]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await sb.from('ranks').delete().eq('id', btn.dataset.id);
+      await loadRanks();
+      loadRanksTable();
+    });
+  });
+}
+
+document.getElementById('add-rank-btn').addEventListener('click', async () => {
+  const name = document.getElementById('add-rank-name').value.trim();
+  const level = parseInt(document.getElementById('add-rank-level').value, 10) || 0;
+  const perms = document.getElementById('add-rank-perms').value
+    .split(',').map(p => p.trim()).filter(Boolean);
+
+  if (!name) return;
+
+  await sb.from('ranks').insert({ name, level, permissions: perms });
+  document.getElementById('add-rank-name').value = '';
+  document.getElementById('add-rank-level').value = '';
+  document.getElementById('add-rank-perms').value = '';
+  await loadRanks();
+  loadRanksTable();
+});
+
+// ---------- ADMINS ----------
+async function loadAdmins() {
+  const { data, error } = await sb
+    .from('admins')
+    .select('*, ranks(name)')
+    .order('created_at', { ascending: false });
+
+  const body = document.getElementById('admins-body');
+  body.innerHTML = '';
+
+  if (error) {
+    body.innerHTML = `<tr><td colspan="5" class="empty-state">Erreur : ${error.message}</td></tr>`;
+    return;
+  }
+
+  document.getElementById('admins-count').textContent = `${data.length} admin(s)`;
+
+  if (data.length === 0) {
+    body.innerHTML = `<tr><td colspan="5" class="empty-state">Aucun admin enregistré.</td></tr>`;
+    return;
+  }
+
+  data.forEach(a => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${a.roblox_username}</td>
+      <td class="mono">#${a.roblox_user_id}</td>
+      <td>${a.ranks ? a.ranks.name : '—'}</td>
+      <td class="mono">${formatDate(a.created_at)}</td>
+      <td><button class="icon-btn reject" data-id="${a.id}">Retirer</button></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  body.querySelectorAll('button[data-id]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await sb.from('admins').delete().eq('id', btn.dataset.id);
+      loadAdmins();
+    });
+  });
+}
+
+document.getElementById('add-admin-btn').addEventListener('click', async () => {
+  const id = parseInt(document.getElementById('add-admin-id').value, 10);
+  const name = document.getElementById('add-admin-name').value.trim();
+  const rankId = document.getElementById('add-admin-rank').value;
+  if (!id || !name || !rankId) return;
+
+  const { data: { user } } = await sb.auth.getUser();
+  await sb.from('admins').insert({
+    roblox_user_id: id,
+    roblox_username: name,
+    rank_id: rankId,
+    added_by: user?.email || 'panel',
+  });
+  document.getElementById('add-admin-id').value = '';
+  document.getElementById('add-admin-name').value = '';
+  loadAdmins();
+});
+
+// ---------- UTILS ----------
+function formatDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+checkSession();
+</script>
+</body>
+</html>
